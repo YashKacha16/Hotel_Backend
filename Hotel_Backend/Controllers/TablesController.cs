@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Hotel_Backend.Models;
 using Hotel_Backend.Services;
+using Hotel_Backend.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace Hotel_Backend.Controllers
 {
@@ -13,10 +15,12 @@ namespace Hotel_Backend.Controllers
     public class TablesController : ControllerBase
     {
         private readonly ITableService _tableService;
+        private readonly AppDbContext _context;
 
-        public TablesController(ITableService tableService)
+        public TablesController(ITableService tableService, AppDbContext context)
         {
             _tableService = tableService;
+            _context = context;
         }
 
         public class UpdateStatusRequest
@@ -233,6 +237,88 @@ namespace Hotel_Backend.Controllers
             return Ok(new { skippedIds });
         }
 
+        [HttpGet("available")]
+        public async Task<ActionResult<IEnumerable<RestaurantTableDto>>> GetAvailable([FromQuery] int partySize, [FromQuery] string seating = "No preference")
+        {
+            var allTables = await _tableService.GetAllAsync(null);
+            var groupCapacities = allTables
+                .Where(t => t.MergeGroupId != null)
+                .GroupBy(t => t.MergeGroupId!.Value)
+                .ToDictionary(g => g.Key, g => g.Sum(t => t.Capacity));
+
+            // Available tables only: The table must be Free, and if it's merged, ALL tables in the merge group must be Free.
+            var occupiedMergeGroups = allTables
+                .Where(t => t.MergeGroupId != null && t.Status != TableStatus.Free)
+                .Select(t => t.MergeGroupId!.Value)
+                .Distinct()
+                .ToHashSet();
+
+            var available = allTables.Where(t => 
+                t.Status == TableStatus.Free && 
+                (t.MergeGroupId == null || !occupiedMergeGroups.Contains(t.MergeGroupId.Value))
+            ).ToList();
+
+            // Filter by capacity (check combined capacity if merged, else regular capacity)
+            var suitable = available.Where(t =>
+            {
+                int cap = t.MergeGroupId != null && groupCapacities.TryGetValue(t.MergeGroupId.Value, out var groupCap)
+                    ? groupCap
+                    : t.Capacity;
+                return cap >= partySize;
+            }).ToList();
+
+            // Filter by seating preference if it's not "No preference"
+            if (!string.Equals(seating, "No preference", StringComparison.OrdinalIgnoreCase))
+            {
+                suitable = suitable.Where(t => t.Category != null &&
+                    (t.Category.Name.Contains(seating, StringComparison.OrdinalIgnoreCase) ||
+                     seating.Contains(t.Category.Name, StringComparison.OrdinalIgnoreCase))).ToList();
+            }
+
+            // Sort by best fit (smallest capacity that fits the party)
+            var sorted = suitable.OrderBy(t =>
+            {
+                int cap = t.MergeGroupId != null && groupCapacities.TryGetValue(t.MergeGroupId.Value, out var groupCap)
+                    ? groupCap
+                    : t.Capacity;
+                return cap - partySize;
+            });
+
+            return Ok(sorted.Select(t => MapToDto(t, groupCapacities)));
+        }
+
+        [HttpPost("{id}/assign")]
+        public async Task<IActionResult> AssignTable(int id, [FromBody] AssignTableDto request)
+        {
+            var table = await _tableService.GetByIdAsync(id);
+            if (table == null) return NotFound(new { message = "Table not found." });
+            if (table.Status != TableStatus.Free) return BadRequest(new { message = "Table is not available." });
+
+            // Mark table as occupied
+            await _tableService.UpdateStatusAsync(id, TableStatus.Occupied, "System");
+
+            // Create an empty order for the table to represent the seating record
+            var newOrder = new Order
+            {
+                OrderNumber = "ORD-" + DateTime.Now.ToString("HHmmssff"), // Temp simple generation
+                Type = OrderType.DineIn,
+                TableId = id,
+                MergeGroupId = table.MergeGroupId,
+                CustomerName = request.GuestName,
+                SpecialInstructions = request.Notes,
+                Status = OrderStatus.New,
+                IsPriority = false,
+                CreatedAt = DateTime.UtcNow,
+                Subtotal = 0,
+                HasNewAddOns = false
+            };
+
+            _context.Orders.Add(newOrder);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Table assigned successfully", orderId = newOrder.Id });
+        }
+
         [HttpGet("resolve/{qrToken}")]
         public async Task<ActionResult<RestaurantTableDto>> ResolveByQrToken(string qrToken)
         {
@@ -240,13 +326,48 @@ namespace Hotel_Backend.Controllers
             if (table == null) return NotFound(new { message = "Invalid QR token." });
             if (table.Status == TableStatus.Cleaning) return StatusCode(409, new { message = "Table is currently unavailable." });
 
+            // Block access if a bill has already been generated
+            Order? existingOrder = null;
+            if (table.MergeGroupId.HasValue)
+            {
+                existingOrder = await _context.Orders
+                    .Where(o => o.MergeGroupId == table.MergeGroupId.Value)
+                    .OrderByDescending(o => o.CreatedAt)
+                    .FirstOrDefaultAsync();
+            }
+            else
+            {
+                existingOrder = await _context.Orders
+                    .Where(o => o.TableId == table.Id)
+                    .OrderByDescending(o => o.CreatedAt)
+                    .FirstOrDefaultAsync();
+            }
+
             var allTables = await _tableService.GetAllAsync(null);
             var groupCapacities = allTables
                 .Where(t => t.MergeGroupId != null)
                 .GroupBy(t => t.MergeGroupId!.Value)
                 .ToDictionary(g => g.Key, g => g.Sum(t => t.Capacity));
 
-            return Ok(MapToDto(table, groupCapacities));
+            var dto = MapToDto(table, groupCapacities);
+
+            if (existingOrder != null)
+            {
+                var existingBill = await _context.RestaurantBills.FirstOrDefaultAsync(b => b.OrderId == existingOrder.Id);
+                if (existingBill != null && existingBill.Status != BillStatus.Paid)
+                {
+                    return StatusCode(409, new { message = "A bill has already been generated for this table. Please pay the bill before placing new orders." });
+                }
+                else if (existingBill == null)
+                {
+                    // Order is active and has no bill yet, return it so the UI can resume
+                    dto.ActiveOrderId = existingOrder.Id;
+                    dto.ActiveOrderNumber = existingOrder.OrderNumber;
+                    dto.ActiveOrderStatus = existingOrder.Status.ToString();
+                }
+            }
+
+            return Ok(dto);
         }
 
         [HttpGet("{id}/qr-image")]

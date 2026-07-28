@@ -4,6 +4,7 @@ using Hotel_Backend.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Hotel_Backend.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260728083727_roomadd")]
+    partial class roomadd
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -54,95 +57,6 @@ namespace Hotel_Backend.Migrations
                     b.HasIndex("RestaurantBillId");
 
                     b.ToTable("BillSplits");
-                });
-
-            modelBuilder.Entity("Hotel_Backend.Models.Booking", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("AdvanceAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("BookingCode")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CheckInDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<TimeSpan>("CheckInTime")
-                        .HasColumnType("time");
-
-                    b.Property<DateTime>("CheckOutDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal?>("ForfeitedAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("GuestName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Guests")
-                        .HasColumnType("int");
-
-                    b.Property<string>("IdNumber")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("IdProofUrl")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PaymentMethod")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Phone")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal?>("RefundAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("RefundMethod")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RefundStatus")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("RoomId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RoomId");
-
-                    b.ToTable("Bookings");
                 });
 
             modelBuilder.Entity("Hotel_Backend.Models.Category", b =>
@@ -243,9 +157,6 @@ namespace Hotel_Backend.Migrations
                     b.Property<string>("LogoUrl")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
-
-                    b.Property<decimal>("MinimumAdvancePercent")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -546,65 +457,6 @@ namespace Hotel_Backend.Migrations
                     b.ToTable("RestaurantTables");
                 });
 
-            modelBuilder.Entity("Hotel_Backend.Models.Room", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Amenities")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("BasePrice")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("Capacity")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CategoryId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("Floor")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Images")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Number")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CategoryId");
-
-                    b.HasIndex("Number")
-                        .IsUnique();
-
-                    b.ToTable("Rooms");
-                });
-
             modelBuilder.Entity("Hotel_Backend.Models.RoomCategory", b =>
                 {
                     b.Property<int>("Id")
@@ -808,17 +660,6 @@ namespace Hotel_Backend.Migrations
                     b.Navigation("RestaurantBill");
                 });
 
-            modelBuilder.Entity("Hotel_Backend.Models.Booking", b =>
-                {
-                    b.HasOne("Hotel_Backend.Models.Room", "Room")
-                        .WithMany()
-                        .HasForeignKey("RoomId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Room");
-                });
-
             modelBuilder.Entity("Hotel_Backend.Models.MenuItem", b =>
                 {
                     b.HasOne("Hotel_Backend.Models.Category", "Category")
@@ -882,17 +723,6 @@ namespace Hotel_Backend.Migrations
                     b.Navigation("Category");
 
                     b.Navigation("MergeGroup");
-                });
-
-            modelBuilder.Entity("Hotel_Backend.Models.Room", b =>
-                {
-                    b.HasOne("Hotel_Backend.Models.RoomCategory", "Category")
-                        .WithMany()
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Category");
                 });
 
             modelBuilder.Entity("Hotel_Backend.Models.SeasonalRule", b =>

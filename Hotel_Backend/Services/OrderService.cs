@@ -140,6 +140,75 @@ namespace Hotel_Backend.Services
 
             var subtotal = dto.Items.Sum(i => i.Quantity * i.PriceAtOrder);
 
+            if (orderType == OrderType.DineIn)
+            {
+                Order? existingOrder = null;
+                if (dto.MergeGroupId.HasValue)
+                {
+                    existingOrder = await _context.Orders
+                        .Include(o => o.Items)
+                        .Where(o => o.MergeGroupId == dto.MergeGroupId.Value)
+                        .OrderByDescending(o => o.CreatedAt)
+                        .FirstOrDefaultAsync();
+                }
+                else if (dto.TableId.HasValue)
+                {
+                    existingOrder = await _context.Orders
+                        .Include(o => o.Items)
+                        .Where(o => o.TableId == dto.TableId.Value)
+                        .OrderByDescending(o => o.CreatedAt)
+                        .FirstOrDefaultAsync();
+                }
+
+                if (existingOrder != null)
+                {
+                    var existingBill = await _context.RestaurantBills.FirstOrDefaultAsync(b => b.OrderId == existingOrder.Id);
+                    
+                    if (existingBill == null)
+                    {
+                        foreach (var item in dto.Items)
+                        {
+                            existingOrder.Items.Add(new OrderItem
+                            {
+                                MenuItemId = item.MenuItemId,
+                                Name = item.Name,
+                                Quantity = item.Quantity,
+                                PriceAtOrder = item.PriceAtOrder,
+                                IsAddOn = true,
+                                Status = OrderItemStatus.Active
+                            });
+                        }
+
+                        existingOrder.Subtotal += subtotal;
+                        existingOrder.HasNewAddOns = true;
+                        
+                        if (!string.IsNullOrWhiteSpace(dto.SpecialInstructions))
+                        {
+                            existingOrder.SpecialInstructions = string.IsNullOrWhiteSpace(existingOrder.SpecialInstructions)
+                                ? dto.SpecialInstructions
+                                : existingOrder.SpecialInstructions + " | " + dto.SpecialInstructions;
+                        }
+
+                        await _context.SaveChangesAsync();
+
+                        var reloadedExisting = await _context.Orders
+                            .Include(o => o.Table)
+                            .Include(o => o.MergeGroup).ThenInclude(g => g!.Tables)
+                            .Include(o => o.Items)
+                            .FirstAsync(o => o.Id == existingOrder.Id);
+
+                        var mappedExisting = MapToDto(reloadedExisting);
+                        await _hubContext.Clients.Group("kitchen-display").SendAsync("OrderUpdated", mappedExisting);
+                        
+                        return mappedExisting;
+                    }
+                    else if (existingBill.Status != BillStatus.Paid)
+                    {
+                        throw new InvalidOperationException("A bill has already been generated for this table. Please pay the bill before placing new orders.");
+                    }
+                }
+            }
+
             var order = new Order
             {
                 OrderNumber = orderNumber,

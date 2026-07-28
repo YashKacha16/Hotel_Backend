@@ -27,6 +27,8 @@ namespace Hotel_Backend.Services
                 Subtotal = b.Subtotal,
                 TaxAmount = b.TaxAmount,
                 TaxPercent = b.TaxPercent > 0 ? b.TaxPercent : 18m,
+                CgstPercent = b.CgstPercent,
+                SgstPercent = b.SgstPercent,
                 ServiceCharge = b.ServiceCharge,
                 ServiceChargePercent = b.ServiceChargePercent > 0 ? b.ServiceChargePercent : 10m,
                 Discount = b.Discount,
@@ -98,7 +100,9 @@ namespace Hotel_Backend.Services
             if (order == null) throw new ArgumentException("Order not found");
 
             decimal scPercent = dto.ServiceChargePercent ?? 10m;
-            decimal taxPercent = dto.TaxPercent ?? 18m;
+            decimal cgstPercent = dto.CgstPercent ?? 9m;
+            decimal sgstPercent = dto.SgstPercent ?? 9m;
+            decimal taxPercent = dto.TaxPercent ?? (cgstPercent + sgstPercent);
             decimal discount = dto.Discount ?? 0m;
 
             // Calculate totals
@@ -120,6 +124,8 @@ namespace Hotel_Backend.Services
                 ServiceChargePercent = scPercent,
                 TaxAmount = taxAmount,
                 TaxPercent = taxPercent,
+                CgstPercent = cgstPercent,
+                SgstPercent = sgstPercent,
                 Discount = discount,
                 TotalAmount = totalAmount,
                 Status = BillStatus.Pending,
@@ -153,7 +159,11 @@ namespace Hotel_Backend.Services
             if (bill.Status == BillStatus.Paid) throw new InvalidOperationException("Cannot modify a paid bill");
 
             if (dto.ServiceChargePercent.HasValue) bill.ServiceChargePercent = dto.ServiceChargePercent.Value;
+            if (dto.CgstPercent.HasValue) bill.CgstPercent = dto.CgstPercent.Value;
+            if (dto.SgstPercent.HasValue) bill.SgstPercent = dto.SgstPercent.Value;
             if (dto.TaxPercent.HasValue) bill.TaxPercent = dto.TaxPercent.Value;
+            else if (dto.CgstPercent.HasValue || dto.SgstPercent.HasValue) bill.TaxPercent = bill.CgstPercent + bill.SgstPercent;
+            
             if (dto.Discount.HasValue) bill.Discount = dto.Discount.Value;
 
             decimal subtotal = bill.Order != null 
