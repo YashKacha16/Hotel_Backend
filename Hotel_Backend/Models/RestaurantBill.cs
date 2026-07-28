@@ -17,6 +17,8 @@ namespace Hotel_Backend.Models
         public decimal Subtotal { get; set; }
         public decimal TaxAmount { get; set; }
         public decimal TaxPercent { get; set; } = 18m;
+        public decimal CgstPercent { get; set; } = 9m;
+        public decimal SgstPercent { get; set; } = 9m;
         public decimal ServiceCharge { get; set; }
         public decimal ServiceChargePercent { get; set; } = 10m;
         public decimal Discount { get; set; }

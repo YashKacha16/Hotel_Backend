@@ -20,6 +20,12 @@ namespace Hotel_Backend.Data
         public DbSet<ParcelCodeSequence> ParcelCodeSequences { get; set; }
         public DbSet<RestaurantBill> RestaurantBills { get; set; }
         public DbSet<BillSplit> BillSplits { get; set; }
+        public DbSet<HotelSetting> HotelSettings { get; set; }
+        public DbSet<WaitlistEntry> WaitlistEntries { get; set; }
+        public DbSet<RoomCategory> RoomCategories { get; set; }
+        public DbSet<SeasonalRule> SeasonalRules { get; set; }
+        public DbSet<Room> Rooms { get; set; }
+        public DbSet<Booking> Bookings { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -80,6 +86,30 @@ namespace Hotel_Backend.Data
                 .WithMany(b => b.Splits)
                 .HasForeignKey(s => s.RestaurantBillId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure WaitlistEntry to RestaurantTable relationship
+            modelBuilder.Entity<WaitlistEntry>()
+                .HasOne(w => w.AssignedTable)
+                .WithMany()
+                .HasForeignKey(w => w.AssignedTableId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Configure RoomCategory unique name
+            modelBuilder.Entity<RoomCategory>()
+                .HasIndex(rc => rc.Name)
+                .IsUnique();
+
+            // Configure SeasonalRule to RoomCategory relationship
+            modelBuilder.Entity<SeasonalRule>()
+                .HasOne(sr => sr.RoomCategory)
+                .WithMany(rc => rc.SeasonalRules)
+                .HasForeignKey(sr => sr.RoomCategoryId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure Room unique number
+            modelBuilder.Entity<Room>()
+                .HasIndex(r => r.Number)
+                .IsUnique();
         }
     }
 }

@@ -15,7 +15,9 @@ builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ITableService, TableService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
-
+builder.Services.AddScoped<IWaitlistService, WaitlistService>();
+builder.Services.AddScoped<BookingService>();
+builder.Services.AddHostedService<NoShowBackgroundService>();
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
