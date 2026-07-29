@@ -50,6 +50,7 @@ namespace Hotel_Backend.Controllers
             return Ok(MapToDto(booking));
         }
 
+        // POST: api/Bookings
         [HttpPost]
         public async Task<ActionResult<BookingDto>> PostBooking([FromForm] CreateBookingDto dto, IFormFile? idProofFile)
         {
@@ -128,8 +129,12 @@ namespace Hotel_Backend.Controllers
             // Mark room as occupied if status is Checked-in
             if (createdBooking.Status == "Checked-in")
             {
-                room.Status = "Occupied";
-                await _context.SaveChangesAsync();
+                var room = await _context.Rooms.FindAsync(dto.RoomId);
+                if (room != null)
+                {
+                    room.Status = "Occupied";
+                    await _context.SaveChangesAsync();
+                }
             }
 
             return CreatedAtAction(nameof(GetBooking), new { id = createdBooking.Id }, MapToDto(createdBooking));
