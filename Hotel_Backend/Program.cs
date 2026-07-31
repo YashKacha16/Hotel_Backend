@@ -17,6 +17,7 @@ builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddScoped<IWaitlistService, WaitlistService>();
 builder.Services.AddScoped<BookingService>();
+builder.Services.AddScoped<RolePermissionService>();
 builder.Services.AddHostedService<NoShowBackgroundService>();
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
