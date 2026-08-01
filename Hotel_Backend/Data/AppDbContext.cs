@@ -26,6 +26,7 @@ namespace Hotel_Backend.Data
         public DbSet<SeasonalRule> SeasonalRules { get; set; }
         public DbSet<Room> Rooms { get; set; }
         public DbSet<Booking> Bookings { get; set; }
+        public DbSet<RoomBill> RoomBills { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

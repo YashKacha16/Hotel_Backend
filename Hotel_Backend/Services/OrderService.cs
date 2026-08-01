@@ -140,10 +140,10 @@ namespace Hotel_Backend.Services
 
             var subtotal = dto.Items.Sum(i => i.Quantity * i.PriceAtOrder);
 
-            if (orderType == OrderType.DineIn)
+            if (orderType == OrderType.DineIn || orderType == OrderType.RoomService)
             {
                 Order? existingOrder = null;
-                if (dto.MergeGroupId.HasValue)
+                if (orderType == OrderType.DineIn && dto.MergeGroupId.HasValue)
                 {
                     existingOrder = await _context.Orders
                         .Include(o => o.Items)
@@ -151,11 +151,19 @@ namespace Hotel_Backend.Services
                         .OrderByDescending(o => o.CreatedAt)
                         .FirstOrDefaultAsync();
                 }
-                else if (dto.TableId.HasValue)
+                else if (orderType == OrderType.DineIn && dto.TableId.HasValue)
                 {
                     existingOrder = await _context.Orders
                         .Include(o => o.Items)
                         .Where(o => o.TableId == dto.TableId.Value)
+                        .OrderByDescending(o => o.CreatedAt)
+                        .FirstOrDefaultAsync();
+                }
+                else if (orderType == OrderType.RoomService && !string.IsNullOrEmpty(dto.RoomNumber))
+                {
+                    existingOrder = await _context.Orders
+                        .Include(o => o.Items)
+                        .Where(o => o.RoomNumber == dto.RoomNumber && o.Type == OrderType.RoomService)
                         .OrderByDescending(o => o.CreatedAt)
                         .FirstOrDefaultAsync();
                 }

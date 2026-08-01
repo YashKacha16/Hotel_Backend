@@ -65,6 +65,11 @@ namespace Hotel_Backend.Controllers
                 return BadRequest(new { message = $"The number of guests ({dto.Guests}) cannot exceed the room capacity ({room.Capacity})." });
             }
 
+            if (dto.Status == "Checked-in" && room.Status == "Occupied")
+            {
+                return BadRequest(new { message = "Room is currently occupied by another guest." });
+            }
+
             // Validate double booking
             var conflict = await _context.Bookings
                 .AnyAsync(b => b.RoomId == dto.RoomId 
@@ -129,10 +134,10 @@ namespace Hotel_Backend.Controllers
             // Mark room as occupied if status is Checked-in
             if (createdBooking.Status == "Checked-in")
             {
-                var room = await _context.Rooms.FindAsync(dto.RoomId);
-                if (room != null)
+                var occupiedRoom = await _context.Rooms.FindAsync(dto.RoomId);
+                if (occupiedRoom != null)
                 {
-                    room.Status = "Occupied";
+                    occupiedRoom.Status = "Occupied";
                     await _context.SaveChangesAsync();
                 }
             }
@@ -158,6 +163,15 @@ namespace Hotel_Backend.Controllers
         {
             var existingBooking = await _bookingService.GetBookingByIdAsync(id);
             if (existingBooking == null) return NotFound();
+
+            if (dto.Status == "Checked-in" && existingBooking.Status != "Checked-in")
+            {
+                var checkRoom = await _context.Rooms.FindAsync(existingBooking.RoomId);
+                if (checkRoom != null && checkRoom.Status == "Occupied")
+                {
+                    return BadRequest(new { message = "Room is currently occupied by another guest." });
+                }
+            }
 
             var booking = new Booking
             {
@@ -192,6 +206,202 @@ namespace Hotel_Backend.Controllers
             }
 
             return NoContent();
+        }
+
+        // GET: api/Bookings/5/bill
+        [HttpGet("{id}/bill")]
+        public async Task<ActionResult<RoomBillDto>> GetRoomBill(int id)
+        {
+            var booking = await _context.Bookings
+                .Include(b => b.Room)
+                .FirstOrDefaultAsync(b => b.Id == id);
+
+            if (booking == null) return NotFound();
+            if (booking.Room == null) return BadRequest("No room associated with this booking.");
+
+            var checkInDateTime = booking.CheckInDate.Date + booking.CheckInTime;
+            var checkOutDateTime = booking.Status == "Completed" ? booking.CheckOutDate : DateTime.UtcNow;
+            
+            // Round up to nearest day (minimum 1)
+            var totalDays = (checkOutDateTime - checkInDateTime).TotalDays;
+            var billedNights = Math.Max(1, (int)Math.Ceiling(totalDays));
+
+            var roomPricePerNight = booking.Room.BasePrice;
+            var totalRoomAmount = billedNights * roomPricePerNight;
+
+            // Fetch unpaid Room Service Orders
+            var roomOrders = await _context.Orders
+                .Include(o => o.Items)
+                .Where(o => o.Type == OrderType.RoomService 
+                         && o.RoomNumber == booking.Room.Number 
+                         && o.CreatedAt >= booking.CheckInDate.Date)
+                .ToListAsync();
+
+            // Check bills for these orders
+            var orderIds = roomOrders.Select(o => o.Id).ToList();
+            var bills = await _context.RestaurantBills
+                .Where(b => orderIds.Contains(b.OrderId))
+                .ToListAsync();
+
+            var unpaidOrders = roomOrders.Where(o => 
+            {
+                var bill = bills.FirstOrDefault(b => b.OrderId == o.Id);
+                return bill == null || bill.Status != BillStatus.Paid;
+            }).ToList();
+
+            var totalRestaurantAmount = unpaidOrders.Sum(o => o.Items.Where(i => i.Status != OrderItemStatus.Cancelled).Sum(i => i.Quantity * i.PriceAtOrder));
+            
+            var totalAmount = totalRoomAmount + totalRestaurantAmount;
+            var dueAmount = totalAmount - booking.AdvanceAmount;
+
+            var dto = new RoomBillDto
+            {
+                BookingId = booking.Id,
+                GuestName = booking.GuestName,
+                RoomNumber = booking.Room.Number,
+                CheckInDateTime = checkInDateTime,
+                CheckOutDateTime = checkOutDateTime,
+                BilledNights = billedNights,
+                RoomPricePerNight = roomPricePerNight,
+                TotalRoomAmount = totalRoomAmount,
+                TotalRestaurantAmount = totalRestaurantAmount,
+                AdvanceAmount = booking.AdvanceAmount,
+                TotalAmount = totalAmount,
+                DueAmount = dueAmount,
+                RestaurantOrders = unpaidOrders.Select(o => new OrderDto
+                {
+                    Id = o.Id,
+                    OrderNumber = o.OrderNumber,
+                    Type = o.Type.ToString(),
+                    RoomNumber = o.RoomNumber,
+                    CustomerName = o.CustomerName,
+                    Status = o.Status.ToString(),
+                    CreatedAt = o.CreatedAt,
+                    Subtotal = o.Items.Where(i => i.Status != OrderItemStatus.Cancelled).Sum(i => i.Quantity * i.PriceAtOrder),
+                    Items = o.Items.Select(i => new OrderItemDto
+                    {
+                        Id = i.Id,
+                        MenuItemId = i.MenuItemId,
+                        Name = i.Name,
+                        Quantity = i.Quantity,
+                        PriceAtOrder = i.PriceAtOrder,
+                        Status = i.Status.ToString(),
+                        IsAddOn = i.IsAddOn
+                    }).ToList()
+                }).ToList()
+            };
+
+            return Ok(dto);
+        }
+
+        // POST: api/Bookings/5/checkout
+        [HttpPost("{id}/checkout")]
+        public async Task<IActionResult> Checkout(int id, [FromBody] CheckoutPaymentDto payment)
+        {
+            var booking = await _context.Bookings
+                .Include(b => b.Room)
+                .FirstOrDefaultAsync(b => b.Id == id);
+
+            if (booking == null) return NotFound();
+            if (booking.Status == "Completed") return BadRequest(new { message = "Booking is already completed." });
+
+            var checkInDateTime = booking.CheckInDate.Date + booking.CheckInTime;
+            var checkOutDateTime = DateTime.UtcNow;
+            
+            // Round up to nearest day (minimum 1)
+            var totalDays = (checkOutDateTime - checkInDateTime).TotalDays;
+            var billedNights = Math.Max(1, (int)Math.Ceiling(totalDays));
+
+            var roomPricePerNight = booking.Room?.BasePrice ?? 0;
+            var totalRoomAmount = billedNights * roomPricePerNight;
+
+            // Fetch unpaid Room Service Orders
+            var roomOrders = await _context.Orders
+                .Include(o => o.Items)
+                .Where(o => o.Type == OrderType.RoomService 
+                         && o.RoomNumber == booking.Room.Number 
+                         && o.CreatedAt >= booking.CheckInDate.Date)
+                .ToListAsync();
+
+            var orderIds = roomOrders.Select(o => o.Id).ToList();
+            var bills = await _context.RestaurantBills
+                .Where(b => orderIds.Contains(b.OrderId))
+                .ToListAsync();
+
+            var unpaidOrders = roomOrders.Where(o => 
+            {
+                var bill = bills.FirstOrDefault(b => b.OrderId == o.Id);
+                return bill == null || bill.Status != BillStatus.Paid;
+            }).ToList();
+
+            var totalRestaurantAmount = unpaidOrders.Sum(o => o.Items.Where(i => i.Status != OrderItemStatus.Cancelled).Sum(i => i.Quantity * i.PriceAtOrder));
+            
+            var totalAmount = totalRoomAmount + totalRestaurantAmount;
+            var dueAmount = totalAmount - booking.AdvanceAmount;
+
+            // Update booking status
+            booking.Status = "Completed";
+            booking.CheckOutDate = checkOutDateTime;
+            booking.PaymentMethod = payment.PaymentMethod; 
+            booking.UpdatedAt = DateTime.UtcNow;
+
+            if (booking.Room != null)
+            {
+                booking.Room.Status = "Available";
+            }
+
+            // Mark associated unpaid Room Service orders as Paid
+            foreach(var order in roomOrders)
+            {
+                var bill = bills.FirstOrDefault(b => b.OrderId == order.Id);
+                if (bill != null && bill.Status != BillStatus.Paid)
+                {
+                    bill.Status = BillStatus.Paid;
+                    bill.PaidAt = DateTime.UtcNow;
+                    bill.PaymentMethod = payment.PaymentMethod;
+                }
+                else if (bill == null)
+                {
+                    var actualSubtotal = order.Items.Where(i => i.Status != OrderItemStatus.Cancelled).Sum(i => i.Quantity * i.PriceAtOrder);
+                    var newBill = new RestaurantBill
+                    {
+                        BillNumber = $"BL-{new Random().Next(1000, 9999)}",
+                        OrderId = order.Id,
+                        Subtotal = actualSubtotal,
+                        TotalAmount = actualSubtotal,
+                        Status = BillStatus.Paid,
+                        PaidAt = DateTime.UtcNow,
+                        PaymentMethod = payment.PaymentMethod,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _context.RestaurantBills.Add(newBill);
+                }
+                
+                order.Status = OrderStatus.Served;
+            }
+
+            // Save RoomBill to database
+            var roomBill = new RoomBill
+            {
+                BillNumber = $"RB-{new Random().Next(1000, 9999)}",
+                BookingId = booking.Id,
+                CheckInDateTime = checkInDateTime,
+                CheckOutDateTime = checkOutDateTime,
+                BilledNights = billedNights,
+                RoomPricePerNight = roomPricePerNight,
+                TotalRoomAmount = totalRoomAmount,
+                TotalRestaurantAmount = totalRestaurantAmount,
+                AdvanceAmount = booking.AdvanceAmount,
+                TotalAmount = totalAmount,
+                DueAmount = dueAmount,
+                PaymentMethod = payment.PaymentMethod,
+                Status = "Paid",
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.RoomBills.Add(roomBill);
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Checkout successful." });
         }
 
         private static BookingDto MapToDto(Booking b)

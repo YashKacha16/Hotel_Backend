@@ -452,4 +452,28 @@ namespace Hotel_Backend.Models
         public string RefundMethod { get; set; } = string.Empty;
         public string RefundStatus { get; set; } = string.Empty;
     }
+
+    public class RoomBillDto
+    {
+        public int BookingId { get; set; }
+        public string GuestName { get; set; } = string.Empty;
+        public string RoomNumber { get; set; } = string.Empty;
+        public DateTime CheckInDateTime { get; set; }
+        public DateTime CheckOutDateTime { get; set; }
+        public int BilledNights { get; set; }
+        public decimal RoomPricePerNight { get; set; }
+        public decimal TotalRoomAmount { get; set; }
+        public decimal TotalRestaurantAmount { get; set; }
+        public decimal AdvanceAmount { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal DueAmount { get; set; }
+        
+        public List<OrderDto> RestaurantOrders { get; set; } = new List<OrderDto>();
+    }
+
+    public class CheckoutPaymentDto
+    {
+        public decimal PaymentAmount { get; set; }
+        public string PaymentMethod { get; set; } = string.Empty;
+    }
 }

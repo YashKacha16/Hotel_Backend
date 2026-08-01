@@ -12,5 +12,6 @@ namespace Hotel_Backend.Services
         Task<IEnumerable<RestaurantBillDto>> GetBillsAsync();
         Task<RestaurantBillDto?> GetBillByIdAsync(int id);
         Task<RestaurantBillDto?> MarkAsPaidAsync(int id, PayBillDto payBillDto);
+        Task<IEnumerable<RoomBill>> GetRoomBillsAsync();
     }
 }

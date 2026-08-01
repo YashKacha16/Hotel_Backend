@@ -24,6 +24,13 @@ namespace Hotel_Backend.Controllers
             return Ok(bills);
         }
 
+        [HttpGet("room-bills")]
+        public async Task<ActionResult<IEnumerable<RoomBill>>> GetRoomBills()
+        {
+            var bills = await _billingService.GetRoomBillsAsync();
+            return Ok(bills);
+        }
+
         [HttpGet("{id}")]
         public async Task<ActionResult<RestaurantBillDto>> GetBill(int id)
         {

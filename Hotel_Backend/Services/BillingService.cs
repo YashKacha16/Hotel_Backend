@@ -262,5 +262,14 @@ namespace Hotel_Backend.Services
             await _context.SaveChangesAsync();
             return MapToDto(bill);
         }
+
+        public async Task<IEnumerable<RoomBill>> GetRoomBillsAsync()
+        {
+            return await _context.RoomBills
+                .Include(b => b.Booking)
+                .ThenInclude(b => b.Room)
+                .OrderByDescending(b => b.CreatedAt)
+                .ToListAsync();
+        }
     }
 }
