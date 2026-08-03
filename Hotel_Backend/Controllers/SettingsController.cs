@@ -71,6 +71,11 @@ namespace Hotel_Backend.Controllers
             settings.WaitlistEstimatedWaitMinutes = dto.WaitlistEstimatedWaitMinutes;
             settings.WaitlistMessage = dto.WaitlistMessage;
             settings.MinimumAdvancePercent = dto.MinimumAdvancePercent;
+            settings.WelcomeImageUrl = dto.WelcomeImageUrl;
+            settings.AboutText = dto.AboutText;
+            settings.ChefName = dto.ChefName;
+            settings.ChefDescription = dto.ChefDescription;
+            settings.ChefImageUrl = dto.ChefImageUrl;
             settings.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
@@ -86,11 +91,11 @@ namespace Hotel_Backend.Controllers
             }
 
             // Validate file type
-            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".svg" };
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".svg", ".webp", ".gif" };
             var extension = Path.GetExtension(logo.FileName).ToLowerInvariant();
             if (!allowedExtensions.Contains(extension))
             {
-                return BadRequest(new { message = "Invalid file type. Only JPG, PNG, and SVG are allowed." });
+                return BadRequest(new { message = "Invalid file type. Allowed: JPG, JPEG, PNG, SVG, WEBP, GIF." });
             }
 
             // Validate file size (2MB)
@@ -127,6 +132,106 @@ namespace Hotel_Backend.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { logoUrl = relativeUrl });
+        }
+
+        [HttpPost("welcome-image")]
+        public async Task<IActionResult> UploadWelcomeImage(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest(new { message = "No file uploaded." });
+            }
+
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".svg", ".webp", ".gif" };
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!allowedExtensions.Contains(extension))
+            {
+                return BadRequest(new { message = "Invalid file type. Allowed: JPG, JPEG, PNG, SVG, WEBP, GIF." });
+            }
+
+            if (file.Length > 2 * 1024 * 1024)
+            {
+                return BadRequest(new { message = "File size exceeds the 2MB limit." });
+            }
+
+            var basePath = _configuration.GetSection("AttachmentConfig").GetValue<string>("BasePath") ?? @"C:\hotel attachment";
+            if (!Directory.Exists(basePath))
+            {
+                Directory.CreateDirectory(basePath);
+            }
+
+            var fileName = $"welcome_{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(basePath, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            var relativeUrl = $"/attachments/{fileName}";
+
+            var settings = await _context.HotelSettings.FirstOrDefaultAsync();
+            if (settings == null)
+            {
+                settings = new HotelSetting { Name = "New Property", Address = "", Phone = "", Email = "admin@hotel.com" };
+                _context.HotelSettings.Add(settings);
+            }
+            settings.WelcomeImageUrl = relativeUrl;
+            settings.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { welcomeImageUrl = relativeUrl });
+        }
+
+        [HttpPost("chef-image")]
+        public async Task<IActionResult> UploadChefImage(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest(new { message = "No file uploaded." });
+            }
+
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".svg", ".webp", ".gif" };
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!allowedExtensions.Contains(extension))
+            {
+                return BadRequest(new { message = "Invalid file type. Allowed: JPG, JPEG, PNG, SVG, WEBP, GIF." });
+            }
+
+            if (file.Length > 2 * 1024 * 1024)
+            {
+                return BadRequest(new { message = "File size exceeds the 2MB limit." });
+            }
+
+            var basePath = _configuration.GetSection("AttachmentConfig").GetValue<string>("BasePath") ?? @"C:\hotel attachment";
+            if (!Directory.Exists(basePath))
+            {
+                Directory.CreateDirectory(basePath);
+            }
+
+            var fileName = $"chef_{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(basePath, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            var relativeUrl = $"/attachments/{fileName}";
+
+            var settings = await _context.HotelSettings.FirstOrDefaultAsync();
+            if (settings == null)
+            {
+                settings = new HotelSetting { Name = "New Property", Address = "", Phone = "", Email = "admin@hotel.com" };
+                _context.HotelSettings.Add(settings);
+            }
+            settings.ChefImageUrl = relativeUrl;
+            settings.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { chefImageUrl = relativeUrl });
         }
     }
 }

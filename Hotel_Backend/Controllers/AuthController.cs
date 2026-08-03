@@ -23,6 +23,14 @@ namespace Hotel_Backend.Controllers
             public string Password { get; set; } = string.Empty;
         }
 
+        public class ClientRegisterDto
+        {
+            public string Name { get; set; } = string.Empty;
+            public string Email { get; set; } = string.Empty;
+            public string Phone { get; set; } = string.Empty;
+            public string Password { get; set; } = string.Empty;
+        }
+
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
         {
@@ -39,6 +47,53 @@ namespace Hotel_Backend.Controllers
             { 
                 message = "Login successful",
                 employee = new { employee.Id, employee.Name, employee.Email, employee.Role, employee.PhotoPath } 
+            });
+        }
+
+        [HttpPost("client/login")]
+        public async Task<IActionResult> ClientLogin([FromBody] LoginDto loginDto)
+        {
+            var client = await _context.Clients
+                .FirstOrDefaultAsync(c => c.Email == loginDto.Email && c.Password == loginDto.Password);
+
+            if (client == null)
+            {
+                return Unauthorized(new { message = "Invalid email or password" });
+            }
+
+            return Ok(new 
+            { 
+                message = "Login successful",
+                client = new { client.Id, client.Name, client.Email, client.Phone } 
+            });
+        }
+
+        [HttpPost("client/register")]
+        public async Task<IActionResult> ClientRegister([FromBody] ClientRegisterDto registerDto)
+        {
+            var exists = await _context.Clients.AnyAsync(c => c.Email == registerDto.Email);
+            if (exists)
+            {
+                return BadRequest(new { message = "Email is already registered" });
+            }
+
+            var client = new Client
+            {
+                Name = registerDto.Name,
+                Email = registerDto.Email,
+                Phone = registerDto.Phone,
+                Password = registerDto.Password,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Clients.Add(client);
+            await _context.SaveChangesAsync();
+
+            return Ok(new 
+            { 
+                message = "Registration successful",
+                client = new { client.Id, client.Name, client.Email, client.Phone } 
             });
         }
 

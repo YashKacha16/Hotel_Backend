@@ -18,6 +18,21 @@ namespace Hotel_Backend.Models
         [MaxLength(1000)]
         public string? LogoUrl { get; set; }
 
+        [MaxLength(1000)]
+        public string? WelcomeImageUrl { get; set; }
+
+        [MaxLength(4000)]
+        public string? AboutText { get; set; }
+
+        [MaxLength(200)]
+        public string? ChefName { get; set; }
+
+        [MaxLength(2000)]
+        public string? ChefDescription { get; set; }
+
+        [MaxLength(1000)]
+        public string? ChefImageUrl { get; set; }
+
         [Required]
         [MaxLength(500)]
         public string Address { get; set; } = string.Empty;

@@ -254,6 +254,11 @@ namespace Hotel_Backend.Models
         public int WaitlistEstimatedWaitMinutes { get; set; } = 22;
         public string WaitlistMessage { get; set; } = "Based on average turnover of 48m over the last hour and 3 free tables.";
         public decimal MinimumAdvancePercent { get; set; } = 0;
+        public string? WelcomeImageUrl { get; set; }
+        public string? AboutText { get; set; }
+        public string? ChefName { get; set; }
+        public string? ChefDescription { get; set; }
+        public string? ChefImageUrl { get; set; }
     }
 
     public class WaitlistDto
